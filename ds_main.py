@@ -1,46 +1,40 @@
 import streamlit as st
-from openai import OpenAI
+import requests
 
-# Set the page title
-st.title('🤖 DeepSeek-R1 Chat via OpenRouter')
+st.title("🤖 DeepSeek-R1 Chat via OpenRouter")
 
-# Hardcode the API key (for testing purposes)
-openrouter_api_key = "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"
+# Load from secrets.toml
+openrouter_api_key = st.secrets["OPENROUTER_API_KEY"]
 
+# Optional site info
+site_url = "https://yourapp.com"
+site_name = "My Streamlit App"
 
-# Optional site info (not visible to users)
-site_url = "https://yourapp.com"  # You can change this to your app's URL
-site_name = "My Streamlit App"    # You can change this to your site’s name
-
-# Function to generate the response using DeepSeek-R1
 def generate_response(input_text):
-    client = OpenAI(
-        base_url="https://openrouter.ai/api/v1",
-        api_key=openrouter_api_key,
-    )
+    headers = {
+        "Authorization": f"Bearer {openrouter_api_key}",
+        "HTTP-Referer": site_url,
+        "X-Title": site_name,
+        "Content-Type": "application/json"
+    }
 
-    completion = client.chat.completions.create(
-        extra_headers={
-            "HTTP-Referer": site_url,  # Optional: Your site URL
-            "X-Title": site_name,      # Optional: Your site name
-        },
-        model="deepseek/deepseek-r1:free",
-        messages=[
-            {
-                "role": "user",
-                "content": input_text
-            }
-        ]
-    )
+    payload = {
+        "model": "deepseek/deepseek-r1:free",
+        "messages": [{"role": "user", "content": input_text}]
+    }
 
-    st.info(completion.choices[0].message.content)
+    response = requests.post("https://openrouter.ai/api/v1/chat/completions", json=payload, headers=headers)
 
-# Text input form
-with st.form('deepseek_form'):
-    text = st.text_area('Ask something:', 'What is the meaning of life?')
-    submitted = st.form_submit_button('Submit')
+    if response.status_code == 200:
+        result = response.json()
+        st.info(result["choices"][0]["message"]["content"])
+    else:
+        st.error(f"Error {response.status_code}: {response.text}")
 
-    if not openrouter_api_key:
-        st.warning('Please set the OPENROUTER_API_KEY environment variable.', icon='⚠')
-    elif submitted:
-        generate_response(text)
+# Streamlit input form
+with st.form("deepseek_form"):
+    user_input = st.text_area("Ask something:", "What is the meaning of life?")
+    submitted = st.form_submit_button("Submit")
+
+    if submitted:
+        generate_response(user_input)
